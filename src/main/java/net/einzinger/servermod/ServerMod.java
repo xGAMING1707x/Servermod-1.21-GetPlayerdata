@@ -1,5 +1,8 @@
 package net.einzinger.servermod;
 
+import com.google.gson.JsonObject;
+import net.minecraft.server.level.ServerPlayer;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import org.slf4j.Logger;
 
 import com.mojang.logging.LogUtils;
@@ -19,6 +22,13 @@ import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
+
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 
 // The value here should match an entry in the META-INF/neoforge.mods.toml file
 @Mod(ServerMod.MOD_ID)
@@ -85,6 +95,48 @@ public class ServerMod
             // Some client setup code
             LOGGER.info("HELLO FROM CLIENT SETUP");
             LOGGER.info("MINECRAFT NAME >> {}", Minecraft.getInstance().getUser().getName());
+        }
+    }
+
+    // Everytime a player logs in
+    @SubscribeEvent
+    public void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event){
+        if (event.getEntity() instanceof ServerPlayer){
+            ServerPlayer player = (ServerPlayer) event.getEntity();
+            String playerName = player.getName().getString();
+            int playerLevel = player.experienceLevel;
+
+            // JSON-Objekt aus den Daten erzeugen
+            JsonObject json = new JsonObject();
+            json.addProperty("playerName", playerName);
+            json.addProperty("playerLevel", playerLevel);
+
+            // Sende Daten an Julian´s PC
+
+        }
+    }
+    private void sendPlayerData(String jsonData){
+        try {
+            // URL von Julian´s PC
+            URL url = new URL("http://185.253.17.65:8080");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Content-Type", "application/json; utf-8");
+            conn.setDoOutput(true);
+
+            // Daten an den Server senden
+            try (OutputStream os = conn.getOutputStream()) {
+                byte[] input = jsonData.getBytes(StandardCharsets.UTF_8);
+                os.write(input, 0, input.length);
+            }
+
+            // Serverantwort lesen
+            int responseCode = conn.getResponseCode();
+            System.out.print("Response Code: " + responseCode);
+            LOGGER.info("Response Code: " + responseCode);
+
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 }

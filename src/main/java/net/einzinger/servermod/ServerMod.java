@@ -112,6 +112,7 @@ public class ServerMod
             json.addProperty("playerLevel", playerLevel);
 
             // Sende Daten an Julian´s PC
+            sendPlayerData(json.toString());
 
         }
     }

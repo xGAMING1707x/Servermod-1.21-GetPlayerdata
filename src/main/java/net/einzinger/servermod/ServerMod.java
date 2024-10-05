@@ -1,6 +1,7 @@
 package net.einzinger.servermod;
 
 import com.google.gson.JsonObject;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import org.slf4j.Logger;
@@ -29,97 +30,57 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 
 // The value here should match an entry in the META-INF/neoforge.mods.toml file
 @Mod(ServerMod.MOD_ID)
 public class ServerMod
 {
-    // Define mod id in a common place for everything to reference
     public static final String MOD_ID = "servermod";
-    // Directly reference a slf4j logger
     private static final Logger LOGGER = LogUtils.getLogger();
 
+    private Timer timer;
+    private MinecraftServer server;
 
-
-    // The constructor for the mod class is the first code that is run when your mod is loaded.
-    // FML will recognize some parameter types like IEventBus or ModContainer and pass them in automatically.
-    public ServerMod(IEventBus modEventBus, ModContainer modContainer)
-    {
+    public ServerMod(IEventBus modEventBus, ModContainer modContainer) {
         modEventBus.addListener(this::commonSetup);
-
-
-        // Register ourselves for server and other game events we are interested in.
-        // Note that this is necessary if and only if we want *this* class (ExampleMod) to respond directly to events.
-        // Do not add this line if there are no @SubscribeEvent-annotated functions in this class, like onServerStarting() below.
         NeoForge.EVENT_BUS.register(this);
-
-        // Register the item to a creative tab
-        modEventBus.addListener(this::addCreative);
-
-        // Register our mod's ModConfigSpec so that FML can create and load the config file for us
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
     }
 
-    private void commonSetup(final FMLCommonSetupEvent event)
-    {
-        // Some common setup code
-        LOGGER.info("HELLO FROM COMMON SETUP");
-
-        if (Config.logDirtBlock)
-            LOGGER.info("DIRT BLOCK >> {}", BuiltInRegistries.BLOCK.getKey(Blocks.DIRT));
-
-        LOGGER.info(Config.magicNumberIntroduction + Config.magicNumber);
-
-        Config.items.forEach((item) -> LOGGER.info("ITEM >> {}", item.toString()));
+    private void commonSetup(final FMLCommonSetupEvent event) {
+        // Timer für das Senden der Spieler-Daten initialisieren
+        timer = new Timer();
+        timer.schedule(new SendPlayerDataTask(), 0, 5000); // Alle 5 Sekunden(5000ms) senden
     }
 
-    // Add the example block item to the building blocks tab
-    private void addCreative(BuildCreativeModeTabContentsEvent event) {
-    }
+    private class SendPlayerDataTask extends TimerTask {
+        @Override
+        public void run(){
+            if(server != null){
+                List<ServerPlayer> players = server.getPlayerList().getPlayers();
+                for(ServerPlayer player : players){
+                    String playerName = player.getName().toString();
+                    int playerLevel = player.experienceLevel;
 
-    // You can use SubscribeEvent and let the Event Bus discover methods to call
-    @SubscribeEvent
-    public void onServerStarting(ServerStartingEvent event)
-    {
-        // Do something when the server starts
-        LOGGER.info("HELLO from server starting");
-    }
+                    // JSON-Objekt aus den Daten erzeugen
+                    JsonObject json = new JsonObject();
+                    json.addProperty("playerName", playerName);
+                    json.addProperty("playerLevel", playerLevel);
 
-    // You can use EventBusSubscriber to automatically register all static methods in the class annotated with @SubscribeEvent
-    @EventBusSubscriber(modid = MOD_ID, bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
-    public static class ClientModEvents
-    {
-        @SubscribeEvent
-        public static void onClientSetup(FMLClientSetupEvent event)
-        {
-            // Some client setup code
-            LOGGER.info("HELLO FROM CLIENT SETUP");
-            LOGGER.info("MINECRAFT NAME >> {}", Minecraft.getInstance().getUser().getName());
+                    // Sende Daten an Julian´s PC
+                    sendPlayerData(json.toString());
+                }
+            }
         }
     }
 
-    // Everytime a player logs in
-    @SubscribeEvent
-    public void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event){
-        if (event.getEntity() instanceof ServerPlayer){
-            ServerPlayer player = (ServerPlayer) event.getEntity();
-            String playerName = player.getName().getString();
-            int playerLevel = player.experienceLevel;
-
-            // JSON-Objekt aus den Daten erzeugen
-            JsonObject json = new JsonObject();
-            json.addProperty("playerName", playerName);
-            json.addProperty("playerLevel", playerLevel);
-
-            // Sende Daten an Julian´s PC
-            sendPlayerData(json.toString());
-
-        }
-    }
-    private void sendPlayerData(String jsonData){
+    private void sendPlayerData(String jsonData) {
         try {
             // URL von Julian´s PC
-            URL url = new URL("http://185.253.17.65:8080");
+            URL url = new URL("http:185.253.17.65:8080");
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Content-Type", "application/json; utf-8");
@@ -133,11 +94,30 @@ public class ServerMod
 
             // Serverantwort lesen
             int responseCode = conn.getResponseCode();
-            System.out.print("Response Code: " + responseCode);
-            LOGGER.info("Response Code: " + responseCode);
+            System.out.println("Response Code: " + responseCode);
 
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
+
+
+    @SubscribeEvent
+    public void onServerStarting(ServerStartingEvent event)
+    {
+        LOGGER.info("HELLO from server starting");
+        this.server = event.getServer(); // Speichert das MC-Server Objekt
+    }
+    @EventBusSubscriber(modid = MOD_ID, bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
+    public static class ClientModEvents
+    {
+        @SubscribeEvent
+        public static void onClientSetup(FMLClientSetupEvent event)
+        {
+            // Some client setup code
+            LOGGER.info("HELLO FROM CLIENT SETUP");
+            LOGGER.info("MINECRAFT NAME >> {}", Minecraft.getInstance().getUser().getName());
+        }
+    }
+
 }

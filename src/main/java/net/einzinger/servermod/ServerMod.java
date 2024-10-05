@@ -80,7 +80,7 @@ public class ServerMod
     private void sendPlayerData(String jsonData) {
         try {
             // URL von Julian´s PC
-            URL url = new URL("http:185.253.17.65:8080");
+            URL url = new URL("http://185.253.17.65:8080");
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Content-Type", "application/json; utf-8");
